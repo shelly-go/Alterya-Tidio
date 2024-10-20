@@ -1,9 +1,6 @@
 import argparse
-import requests
+import websocket
 import json
-
-# Replace with your Tidio API endpoint
-TIDIO_API_URL = 'wss://socket.tidio.co/socket.io/?ppk=hdikhrhpbm1frocyeuro1aplei6xxdvz&device=desktop&cmv=2_0&EIO=4&transport=websocket'
 
 VISITOR_REGISTER_FORMAT = [
     "visitorRegister",
@@ -62,8 +59,6 @@ NEW_MESSAGE_FORMAT = [
     }
 ]
 
-import websocket
-
 
 def on_message(ws, message):
     print(f"Received message: {message}")
@@ -79,32 +74,31 @@ def on_close(ws, *args):
 
 def on_open(ws):
     print("Connection open.")
+    ws.send(40)  # I assume this is some sort of ack.
+    send_msg(ws, 420, VISITOR_REGISTER_FORMAT)
 
 
 def get_cli_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description='Recursively copy files from multiple source dirs to multiple destination dirs'
+        description='Chat with tidio'
     )
     parser.add_argument(
-        'src_dest_pairs',
-        nargs='+',
-        help='Pairs of source and destination paths, each separated by colon like so: /src/path:/dest/path'
-    )
-    parser.add_argument(
-        '-l', '--limit',
-        required=False,
-        help='Transfer bandwidth limit'
+        'ppk',
+        help='ppk with which to connect to the server'
     )
     return parser.parse_args()
 
 
-def send_msg(ws: websocket.WebSocketApp, msg: list):
-    ws.send(json.dumps(msg))
+def send_msg(ws: websocket.WebSocketApp, code: int, msg: list):
+    m = str(code) + json.dumps(msg)
+    ws.send(m)
 
 
 if __name__ == '__main__':
+    args = get_cli_args()
+    TIDIO_API_URL = f'wss://socket.tidio.co/socket.io/?ppk={args.ppk}&device=desktop&cmv=2_0&EIO=4&transport=websocket'
     ws = websocket.WebSocketApp(
-        TIDIO_API_URL,
+        TIDIO_API_URL.format(ppk=args.ppk),
         on_open=on_open,
         on_message=on_message,
         on_error=on_error,
@@ -113,14 +107,9 @@ if __name__ == '__main__':
 
     ws.run_forever()
 
-    # this is what the server does, Not sure if it works.
-    ws.send(json.dumps("40"))  # I assume this is some sort of ack.
-
-    # register visitor
-    send_msg(ws, VISITOR_REGISTER_FORMAT)
     while True:
         msg_to_send = input("Enter message: ")
         message = NEW_MESSAGE_FORMAT.copy()
         message[1]["message"] = msg_to_send
-        send_msg(ws, message)
+        send_msg(ws, 433, message)
         print("Message sent")
